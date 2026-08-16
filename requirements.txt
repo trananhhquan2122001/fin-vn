@@ -1,0 +1,15 @@
+streamlit
+pandas
+numpy
+plotly
+rapidfuzz
+underthesea
+vnstock3
+requests
+scikit-learn
+xgboost
+lightgbm
+catboost
+statsmodels
+optuna
+scipy
