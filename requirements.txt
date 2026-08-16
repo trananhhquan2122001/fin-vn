@@ -1,3 +1,4 @@
+# --- GIAO DIỆN & XỬ LÝ DỮ LIỆU ---
 streamlit
 pandas
 numpy
@@ -6,10 +7,14 @@ rapidfuzz
 underthesea
 vnstock3
 requests
+
+# --- MACHINE LEARNING TRUYỀN THỐNG ---
 scikit-learn
 xgboost
 lightgbm
 catboost
 statsmodels
+
+# --- TỐI ƯU HÓA MÔ HÌNH ---
 optuna
 scipy
