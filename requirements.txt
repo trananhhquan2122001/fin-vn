@@ -4,7 +4,7 @@ numpy
 plotly
 rapidfuzz
 underthesea
-vnstock3
+vnstock3>=0.8.0
 requests
 ipython
 
