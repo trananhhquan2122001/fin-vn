@@ -1,4 +1,3 @@
-# --- GIAO DIỆN & XỬ LÝ DỮ LIỆU ---
 streamlit
 pandas
 numpy
@@ -7,6 +6,7 @@ rapidfuzz
 underthesea
 vnstock3
 requests
+ipython
 
 # --- MACHINE LEARNING TRUYỀN THỐNG ---
 scikit-learn
