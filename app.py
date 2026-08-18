@@ -33,7 +33,7 @@ except ImportError:
     XGB_AVAILABLE = False
 
 # ============================================================================
-# 1. CẤU HÌNH TRANG & CSS DARK MODE
+# 1. CẤU HÌNH TRANG & CSS DARK MODE (BỔ SUNG CHỐNG TRÀN)
 # ============================================================================
 st.set_page_config(
     page_title="FINEX VN Terminal - Công Nghệ Định Giá Doanh Nghiệp",
@@ -42,6 +42,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+# REFACTOR: CSS cải tiến chống tràn metric
 st.markdown(
     """
 <style>
@@ -159,7 +160,7 @@ st.markdown(
 )
 
 # ============================================================================
-# 2. HÀM ĐỊNH DẠNG SỐ CHUẨN
+# 2. CÁC HÀM CHUẨN HÓA ĐƠN VỊ (REFACTOR)
 # ============================================================================
 def to_float_scalar(val):
     if val is None:
@@ -194,35 +195,7 @@ def round_float(val, decimals=2):
     except:
         return 0.0
 
-def format_currency_vn_advanced(value, unit='auto', decimals=2, per_share=False):
-    num = to_float_scalar(value)
-    abs_num = abs(num)
-    sign = "-" if num < 0 else ""
-    if per_share:
-        return f"{sign}{abs_num:,.0f} VNĐ/cp"
-    if unit == 'nghin_ty' or (unit == 'auto' and abs_num >= 1e12):
-        return f"{sign}{abs_num / 1e12:,.{decimals}f} Nghìn tỷ VNĐ"
-    elif unit == 'ty' or (unit == 'auto' and abs_num >= 1e9):
-        return f"{sign}{abs_num / 1e9:,.{decimals}f} Tỷ VNĐ"
-    elif unit == 'auto' and abs_num >= 1e6:
-        return f"{sign}{abs_num / 1e6:,.{decimals}f} Triệu VNĐ"
-    else:
-        return f"{sign}{abs_num:,.0f} VNĐ"
-
-def format_currency_vn(val, decimals=0):
-    return format_currency_vn_advanced(val, unit='auto', decimals=decimals)
-
-def format_eps_value(val):
-    return format_currency_vn_advanced(val, per_share=True)
-
-def format_pe_pb(val):
-    if val is None or val == 0:
-        return "N/A"
-    return f"{val:,.2f}"
-
-# ============================================================================
-# 2B. CHUẨN HÓA ĐƠN VỊ TÍNH & DỮ LIỆU THỊ TRƯỜNG ĐỘNG (REFACTOR)
-# ============================================================================
+# REFACTOR: Hàm format_vn_currency chuẩn hóa đơn vị Nghìn tỷ / Tỷ
 def format_vn_currency(value, unit='nghin_ty', decimals=2):
     """Chuẩn hóa tiền tệ về Nghìn tỷ đồng (1e12) hoặc Tỷ đồng (1e9). N/A nếu dữ liệu không hợp lệ."""
     try:
@@ -264,6 +237,9 @@ def format_price_vnd(price):
         return "N/A"
     return f"{p:,.0f} VNĐ"
 
+# ============================================================================
+# 3. HÀM TÍNH GIÁ & VỐN HÓA ĐỘNG (REFACTOR) — BỎ CỐ ĐỊNH 25K
+# ============================================================================
 def get_dynamic_market_data(df, ticker, row=None):
     """
     Tính Giá cổ phiếu & Vốn hóa ĐỘNG cho từng doanh nghiệp (không gán cứng 25.000đ):
@@ -303,7 +279,7 @@ def get_dynamic_market_data(df, ticker, row=None):
     return {'price': _valid(price), 'market_cap': _valid(market_cap), 'shares': _valid(shares)}
 
 # ============================================================================
-# 2C. PHÂN LOẠI DOANH NGHIỆP THEO MÃ NGÀNH 10 / 20 / 30 (REFACTOR)
+# 4. PHÂN LOẠI DOANH NGHIỆP THEO MÃ NGÀNH (10/20/30) (REFACTOR)
 # ============================================================================
 SECURITIES_TICKERS = {'SSI','VND','HCM','VCI','SHS','MBS','FTS','BSI','CTS','VIX','AGR','ORS','TVS','APS','BVS','PSI','VDS','EVS','DSC','SBS'}
 INSURANCE_TICKERS = {'BVH','PVI','BMI','MIG','BIC','PGI','VNR','PTI','ABI','AIC'}
@@ -347,7 +323,7 @@ def industry_label(industry_type):
     }.get(industry_type, "Khác")
 
 # ============================================================================
-# 3. PHÁT HIỆN NGÂN HÀNG & BANK ADAPTER
+# 5. PHÁT HIỆN NGÂN HÀNG & BANK ADAPTER
 # ============================================================================
 BANK_TICKERS = {'MBB','HDB','CTG','TCB','VCB','VPB','BID','ACB','SHB','TPB','MSB','OCB','VIB','STB','EIB','SSB','SGB','NAB','KLB','CBB','PGB','BAB','BSB'}
 
@@ -383,7 +359,7 @@ def get_bank_revenue(row, df):
     return 0.0, "Không tìm thấy"
 
 # ============================================================================
-# 4. HÀM HỖ TRỢ CHUNG
+# 6. HÀM HỖ TRỢ CHUNG
 # ============================================================================
 def fix_duplicate_columns(df):
     if df.empty:
@@ -423,7 +399,7 @@ def find_column_by_keywords(df, keywords, default=None):
     return find_column_smart(df, keywords, threshold=60) or default
 
 # ============================================================================
-# 5. MAPPING NGÀNH & TÊN CÔNG TY
+# 7. MAPPING NGÀNH & TÊN CÔNG TY
 # ============================================================================
 def get_company_and_industry(ticker, row, df):
     t = str(ticker).strip().upper()
@@ -444,7 +420,7 @@ def get_company_and_industry(ticker, row, df):
     return comp_name, comp_ind
 
 # ============================================================================
-# 6. MAPPING CÔNG TY CHÍNH XÁC
+# 8. MAPPING CÔNG TY CHÍNH XÁC
 # ============================================================================
 COMPANY_EXACT_DB = {
     "FPT": ("Tập đoàn FPT", "Công nghệ thông tin"),
@@ -469,7 +445,7 @@ COMPANY_EXACT_DB = {
 }
 
 # ============================================================================
-# 7. TRÍCH XUẤT CHỈ SỐ - TỰ TÍNH P/E, P/B, BVPS
+# 9. TRÍCH XUẤT CHỈ SỐ - TỰ TÍNH P/E, P/B, BVPS (CÓ GỌI get_dynamic_market_data)
 # ============================================================================
 def extract_financial_metrics_smart(row, df, ticker):
     # Thêm 'lợi nhuận gộp' vào danh sách tìm profit
@@ -518,7 +494,7 @@ def extract_financial_metrics_smart(row, df, ticker):
         if equity > 0 and shares > 0:
             bvps = equity / shares
             bvps_source = "Tự tính từ Vốn chủ/Shares"
-            bvps_message = f"✅ BVPS = {bvps:,.0f} (từ Vốn chủ {format_currency_vn_advanced(equity)} / Shares {shares:,.0f})"
+            bvps_message = f"✅ BVPS = {bvps:,.0f} (từ Vốn chủ {format_vn_currency(equity)} / Shares {shares:,.0f})"
         elif price > 0 and pb > 0:
             bvps = price / pb
             bvps_source = "Ước lượng từ P/B"
@@ -561,7 +537,7 @@ def get_financial_metrics(row, df, ticker):
     return extract_financial_metrics_smart(row, df, ticker)
 
 # ============================================================================
-# 8. LOAD DATA & EXTRACT TỔNG HỢP
+# 10. LOAD DATA & EXTRACT TỔNG HỢP
 # ============================================================================
 @st.cache_data(ttl=86400)
 def get_stock_mapping():
@@ -643,7 +619,7 @@ def extract_all_metrics(row, df, ticker):
     return metrics
 
 # ============================================================================
-# 9. HÀM ML & DEEP LEARNING
+# 11. HÀM ML & DEEP LEARNING (GIỮ NGUYÊN)
 # ============================================================================
 def convert_to_trillion(value):
     if pd.isna(value) or value == 0:
@@ -879,7 +855,7 @@ def hybrid_valuation_ensemble(price, eps, bvps, roe, margin, de, sector):
     return round_float(result, 0)
 
 # ============================================================================
-# 10. HÀM TÍNH ĐỊNH GIÁ RẺ
+# 12. HÀM TÍNH ĐỊNH GIÁ RẺ (CÓ GỌI get_dynamic_market_data)
 # ============================================================================
 def get_undervalued_stocks(df, ticker_col):
     if df.empty or ticker_col is None:
@@ -900,7 +876,12 @@ def get_undervalued_stocks(df, ticker_col):
         ticker = str(row[ticker_col]).strip().upper()
         price = clean_financial_value(row.get(price_col, 0))
         if price <= 0:
-            continue
+            # REFACTOR: thử tính giá từ get_dynamic_market_data
+            md = get_dynamic_market_data(df, ticker, row=row)
+            if md['price']:
+                price = md['price']
+            else:
+                continue
         adtv = 0
         if adtv_col:
             adtv = clean_financial_value(row.get(adtv_col, 0))
@@ -965,7 +946,7 @@ def get_undervalued_stocks(df, ticker_col):
     return df_result
 
 # ============================================================================
-# 11. HIỂN THỊ TÀI LIỆU
+# 13. HIỂN THỊ TÀI LIỆU (GIỮ NGUYÊN)
 # ============================================================================
 def render_document_section():
     with st.expander("📖 Mở tài liệu tham khảo: Phân Tích Chứng Khoán (Security Analysis)", expanded=False):
@@ -993,7 +974,7 @@ def render_document_section():
         """)
 
 # ============================================================================
-# 12. SLIDER ĐỊNH GIÁ
+# 14. SLIDER ĐỊNH GIÁ (GIỮ NGUYÊN)
 # ============================================================================
 def render_valuation_slider(current_price, eps, bvps):
     st.markdown("---")
@@ -1129,7 +1110,7 @@ def render_valuation_slider(current_price, eps, bvps):
     st.caption("💡 *Giá trị thực được tính theo mô hình DCF: EPS × (1+g) / (r−g). Điều chỉnh các thanh trượt để xem kịch bản khác nhau.*")
 
 # ============================================================================
-# 13. KIỂM TRA ĐỘ CHÍNH XÁC
+# 15. KIỂM TRA ĐỘ CHÍNH XÁC (GIỮ NGUYÊN)
 # ============================================================================
 def render_accuracy_section():
     if 'show_accuracy' not in st.session_state:
@@ -1223,7 +1204,7 @@ def render_accuracy_section():
         st.caption("💡 *Trọng số được tối ưu dựa trên hiệu suất backtest và độ tin cậy của từng mô hình.*")
 
 # ============================================================================
-# 14. BỘ LỌC 3 TẦNG
+# 16. BỘ LỌC 3 TẦNG (CÓ GỌI get_dynamic_market_data)
 # ============================================================================
 def check_signal_filters(row, df, ticker, sector, intrinsic_value, current_price):
     messages = []
@@ -1314,9 +1295,8 @@ def calculate_altman_z(row, df):
     return z
 
 # ============================================================================
-# 15. FETCH DỮ LIỆU REAL-TIME (VỚI 3 VŨ KHÍ CHỐNG CHẶN API)
+# 17. FETCH DỮ LIỆU REAL-TIME (GIỮ NGUYÊN)
 # ============================================================================
-# Vũ khí 1: User-Agent Rotation
 USER_AGENTS = [
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
@@ -1324,13 +1304,8 @@ USER_AGENTS = [
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/121.0',
 ]
 
-# Vũ khí 2: Cache TTL=3600 (1 giờ) - giảm tải API
 @st.cache_data(ttl=3600)
 def get_stock_data_bulletproof(symbol):
-    """
-    Lấy dữ liệu từ API với User-Agent random, fallback sang file CSV nếu API thất bại.
-    Đây là hàm an toàn, luôn trả về dữ liệu dù API có lỗi.
-    """
     sources = ['VCI', 'TCBS', 'MSN']
     price = 0.0
     market_cap = "N/A"
@@ -1341,10 +1316,7 @@ def get_stock_data_bulletproof(symbol):
     df_balance = pd.DataFrame()
     active_source = "Không kết nối"
     error_msg = None
-
-    # Chọn User-Agent ngẫu nhiên cho lần gọi này
     headers = {'User-Agent': random.choice(USER_AGENTS)}
-
     for src in sources:
         try:
             stock = Vnstock().stock(symbol=symbol, source=src)
@@ -1379,8 +1351,6 @@ def get_stock_data_bulletproof(symbol):
         except Exception as e:
             error_msg = str(e)
             continue
-
-    # Vũ khí 3: Fallback file CSV (598 doanh nghiệp) - đây là Margin of Safety của dữ liệu
     if price == 0 and df_income.empty:
         fallback_file = "vn_top598_financial_statements_master_2022_2025.csv"
         if not os.path.exists(fallback_file):
@@ -1417,9 +1387,7 @@ def get_stock_data_bulletproof(symbol):
                         if mc_fb > 0:
                             market_cap = f"{mc_fb/1e9:,.1f} Tỷ" if mc_fb > 1e6 else f"{mc_fb:,.1f} Tỷ"
             except Exception as e:
-                # Không báo lỗi để giữ giao diện
                 pass
-
     return price, market_cap, pe, pb, roe, df_income, df_balance, active_source, error_msg
 
 def fetch_api_with_proxy(url, timeout=8):
@@ -1554,7 +1522,6 @@ def fetch_stock_data(ticker):
             for k in ['revenue', 'profit', 'equity', 'shares', 'market_cap', 'adtv20']:
                 if normalized.get(k, 0) <= 0:
                     normalized[k] = mock.get(k, 0)
-    # REFACTOR: KHÔNG ghi đè giá/EPS thật bằng dữ liệu mô phỏng — thiếu thì giữ 0 và hiển thị N/A
     return normalized
 
 def render_real_time_data(ticker):
@@ -1587,7 +1554,41 @@ def render_real_time_data(ticker):
     st.caption(f"*Dữ liệu được lấy từ {data.get('source', 'API')} vào lúc {pd.Timestamp.now().strftime('%H:%M:%S %d/%m/%Y')}.*")
 
 # ============================================================================
-# 16. POPUP VIP
+# 18. CÁC HÀM ĐỊNH DẠNG CŨ (GIỮ LẠI ĐỂ TƯƠNG THÍCH)
+# ============================================================================
+def format_currency_vn_advanced(value, unit='auto', decimals=2, per_share=False):
+    """Hàm cũ, nhưng đã được đồng bộ với format_vn_currency"""
+    num = to_float_scalar(value)
+    if num == 0 or np.isnan(num) or np.isinf(num):
+        if per_share:
+            return "N/A"
+        return "N/A"
+    sign = "-" if num < 0 else ""
+    abs_num = abs(num)
+    if per_share:
+        return f"{sign}{abs_num:,.0f} VNĐ/cp"
+    if unit == 'nghin_ty' or (unit == 'auto' and abs_num >= 1e12):
+        return f"{sign}{abs_num / 1e12:,.{decimals}f} Nghìn tỷ"
+    elif unit == 'ty' or (unit == 'auto' and abs_num >= 1e9):
+        return f"{sign}{abs_num / 1e9:,.{decimals}f} Tỷ"
+    elif unit == 'auto' and abs_num >= 1e6:
+        return f"{sign}{abs_num / 1e6:,.{decimals}f} Triệu VNĐ"
+    else:
+        return f"{sign}{abs_num:,.0f} VNĐ"
+
+def format_currency_vn(val, decimals=0):
+    return format_currency_vn_advanced(val, unit='auto', decimals=decimals)
+
+def format_eps_value(val):
+    return format_currency_vn_advanced(val, per_share=True)
+
+def format_pe_pb(val):
+    if val is None or val == 0:
+        return "N/A"
+    return f"{val:,.2f}"
+
+# ============================================================================
+# 19. POPUP VIP & MAIN
 # ============================================================================
 @st.dialog("🚀 NÂNG CẤP FINEX VN VIP")
 def vip_upgrade_dialog():
@@ -1608,7 +1609,7 @@ def vip_upgrade_dialog():
             st.rerun()
 
 # ============================================================================
-# 17. MAIN (TÍCH HỢP CẢ HAI NGUỒN DỮ LIỆU)
+# 20. MAIN (TÍCH HỢP CẢ HAI NGUỒN DỮ LIỆU) - ĐÃ REFACTOR
 # ============================================================================
 def main():
     if 'selected_ticker' not in st.session_state:
@@ -1650,7 +1651,6 @@ def main():
         key="data_source"
     )
 
-    # Biến chung
     df = pd.DataFrame()
     sector = "general"
     selected_ticker_display = None
@@ -1659,8 +1659,6 @@ def main():
 
     # ====== TRƯỜNG HỢP 1: FILE CSV ======
     if data_source == "📂 File CSV (Top 598 doanh nghiệp)":
-        # Vẫn giữ nguyên các lựa chọn dataset như bản gốc
-        # Nhưng file mặc định là 598 doanh nghiệp
         st.sidebar.subheader("Chọn khối doanh nghiệp:")
         dataset_option = st.sidebar.selectbox(
             "Khối dữ liệu:",
@@ -1724,7 +1722,6 @@ def main():
             st.sidebar.warning("Vui lòng nhập mã cổ phiếu.")
             st.stop()
 
-        # Gọi hàm bất khả chiến bại với 3 vũ khí
         price, market_cap, pe, pb, roe, df_inc, df_bs, active_src, err = get_stock_data_bulletproof(ticker_api)
 
         if df_inc.empty or df_bs.empty:
@@ -1777,10 +1774,17 @@ def main():
         st.session_state.ticker_col = 'Mã CP'
 
     if not df.empty:
+        # REFACTOR: Xác định ngành trước khi lấy chỉ số
+        industry_type = categorize_industry(df, selected_ticker_display, row=row_data)
+        if industry_type == 20:
+            sector = "banking"
+        elif industry_type == 30 and sector not in ("securities", "insurance"):
+            sector = "securities"
+        # Lấy các chỉ số cơ bản
         fin = extract_financial_metrics_smart(row_data, df, selected_ticker_display)
         eps = fin['eps']
         bvps = fin['bvps']
-        price = fin['price'] if fin['price'] > 0 else 0.0  # N/A nếu thiếu giá — không gán 25.000đ
+        price = fin['price'] if fin['price'] > 0 else 0.0
         roe = fin['roe']
         pe = fin['pe']
         pb = fin['pb']
@@ -1788,14 +1792,9 @@ def main():
         bvps_message = fin.get('bvps_message', '')
         has_eps = fin['has_eps']
         has_bvps = fin['has_bvps']
-        # REFACTOR: kiểm tra phân loại ngành (10/20/30) TRƯỚC khi áp công thức
-        industry_type = categorize_industry(df, selected_ticker_display, row=row_data)
+        # Nếu là ngân hàng, margin = N/A (không tính biên lợi nhuận gộp kiểu sản xuất)
         if industry_type == 20:
-            sector = "banking"
-        elif industry_type == 30 and sector not in ("securities", "insurance"):
-            sector = "securities"
-        if industry_type == 20:
-            margin = 0.0  # Ngân hàng: KHÔNG tính Biên LN gộp kiểu sản xuất → hiển thị N/A
+            margin = 0.0
         else:
             margin = clean_financial_value(row_data.get(find_column_by_keywords(df, ['biên lợi nhuận gộp', 'gross margin']), 0))
         de = clean_financial_value(row_data.get(find_column_by_keywords(df, ['nợ/vcsh', 'd/e', 'debt to equity']), 0))
@@ -1857,7 +1856,7 @@ def main():
         </div>
         """, unsafe_allow_html=True)
 
-    # ===== CÁC TAB (GIỮ NGUYÊN NHƯ BẢN GỐC) =====
+    # ===== CÁC TAB =====
     tab_table, tab_valuation, tab_forecast, tab_overview, tab_search, tab_ml, tab_dl, tab_real = st.tabs([
         "📋 DỮ LIỆU",
         "🧮 ĐỊNH GIÁ",
@@ -1869,7 +1868,7 @@ def main():
         "📡 REAL-TIME",
     ])
 
-    # --- TAB 1: DỮ LIỆU ---
+    # --- TAB 1: DỮ LIỆU (giữ nguyên) ---
     with tab_table:
         if data_source == "📂 File CSV (Top 598 doanh nghiệp)":
             st.subheader(f"📋 Danh sách: {dataset_option}")
@@ -1906,7 +1905,7 @@ def main():
             else:
                 st.info("Không có dữ liệu Bảng cân đối.")
 
-    # --- TAB 2: ĐỊNH GIÁ ---
+    # --- TAB 2: ĐỊNH GIÁ (REFACTOR: định dạng nghìn tỷ) ---
     with tab_valuation:
         st.subheader(f"📊 ĐỊNH GIÁ CHI TIẾT: {selected_ticker_display}")
         if bvps_source != "BCTC gốc":
@@ -1917,29 +1916,33 @@ def main():
         col3.metric("BVPS (VNĐ/cp)", format_eps_value(bvps))
         col4.metric("Định giá Hybrid", format_currency_vn_advanced(intrinsic_val, per_share=True) if intrinsic_val else "N/A")
 
-        st.markdown("#### 📌 Các chỉ số quy mô (Tỷ VNĐ)")
+        st.markdown("#### 📌 Các chỉ số quy mô (Nghìn tỷ / Tỷ VNĐ)")
         col5, col6, col7 = st.columns(3)
         if is_bank_ticker(selected_ticker_display) and bank_revenue is not None:
-            rev_display = format_currency_vn_advanced(bank_revenue)
+            rev_display = format_vn_currency(bank_revenue, unit='ty')
             rev_label = "Thu nhập lãi thuần (NII) / TOI"
         else:
             rev_col = find_column_by_keywords(df, ['Doanh thu bán hàng', 'doanh thu', 'revenue'])
             rev_val = clean_financial_value(row_data.get(rev_col, 0)) if rev_col else 0
-            rev_display = format_currency_vn_advanced(rev_val) if rev_val else "N/A"
+            rev_display = format_vn_currency(rev_val, unit='ty') if rev_val else "N/A"
             rev_label = "Doanh thu"
         prof_col = find_column_by_keywords(df, ['lợi nhuận sau thuế', 'lnst', 'profit'])
         asset_col = find_column_by_keywords(df, ['tổng tài sản', 'total assets'])
         prof_val = clean_financial_value(row_data.get(prof_col, 0)) if prof_col else 0
         asset_val = clean_financial_value(row_data.get(asset_col, 0)) if asset_col else 0
         col5.metric(rev_label, rev_display)
-        col6.metric("Lợi nhuận", format_currency_vn_advanced(prof_val) if prof_val else "N/A")
-        col7.metric("Tổng tài sản", format_currency_vn_advanced(asset_val) if asset_val else "N/A")
+        col6.metric("Lợi nhuận", format_vn_currency(prof_val, unit='ty') if prof_val else "N/A")
+        col7.metric("Tổng tài sản", format_vn_currency(asset_val, unit='ty') if asset_val else "N/A")
 
         st.markdown("---")
         st.markdown("### 🏆 ĐÁNH GIÁ CHẤT LƯỢNG DOANH NGHIỆP")
         div_yield = clean_financial_value(row_data.get(find_column_by_keywords(df, ['tỷ suất cổ tức', 'dividend yield', 'cổ tức (%)']), 0))
         de_ratio = clean_financial_value(row_data.get(find_column_by_keywords(df, ['nợ/vcsh', 'd/e', 'debt to equity']), 0))
-        gross_margin = clean_financial_value(row_data.get(find_column_by_keywords(df, ['biên lợi nhuận gộp', 'gross margin', 'lợi nhuận gộp']), 0))
+        # Nếu ngành ngân hàng, không hiển thị biên lợi nhuận gộp
+        if industry_type == 20:
+            gross_margin = 0.0
+        else:
+            gross_margin = clean_financial_value(row_data.get(find_column_by_keywords(df, ['biên lợi nhuận gộp', 'gross margin', 'lợi nhuận gộp']), 0))
         growth_rev = clean_financial_value(row_data.get(find_column_by_keywords(df, ['tăng trưởng doanh thu', 'revenue growth']), 0))
         growth_profit = clean_financial_value(row_data.get(find_column_by_keywords(df, ['tăng trưởng lợi nhuận', 'profit growth']), 0))
         if intrinsic_val and intrinsic_val > 0:
@@ -2015,7 +2018,7 @@ def main():
                 st.markdown(f"- {c}")
         render_valuation_slider(price, eps, bvps)
 
-    # --- TAB 3: DỰ BÁO ---
+    # --- TAB 3: DỰ BÁO (REFACTOR: cổ tức chỉ từ cash_dividend) ---
     with tab_forecast:
         st.markdown("### 📌 Phân Tích & Mô Phỏng Tăng Trưởng Dài Hạn")
         if not df.empty:
@@ -2023,7 +2026,10 @@ def main():
             all_cols = df.columns
             rev_col = find_column_by_keywords(df, ['Doanh thu bán hàng', 'doanh thu', 'revenue'])
             prof_col = find_column_by_keywords(df, ['lợi nhuận sau thuế', 'lnst', 'profit', 'net income'])
-            div_col = find_column_by_keywords(df, ['cash_dividend', 'cổ tức tiền mặt', 'cổ tức', 'dividend per share', 'dividend'])
+            # REFACTOR: Chỉ lấy cột cổ tức tiền mặt (cash_dividend)
+            cash_div_col = find_column_by_keywords(df, ['cash_dividend', 'cổ tức tiền mặt'])
+            if cash_div_col is None:
+                cash_div_col = find_column_by_keywords(df, ['cổ tức', 'dividend per share'])  # fallback
 
             c_sel1, c_sel2, c_sel3 = st.columns(3)
             with c_sel1:
@@ -2033,16 +2039,19 @@ def main():
                 prof_index = list(all_cols).index(prof_col) if prof_col in all_cols else 0
                 prof_col_name = st.selectbox("💰 Chọn cột Lợi Nhuận:", all_cols, index=prof_index)
             with c_sel3:
-                div_index = list(all_cols).index(div_col) if div_col in all_cols else 0
+                # Mặc định chọn cột cổ tức tiền mặt nếu có
+                if cash_div_col in all_cols:
+                    div_index = list(all_cols).index(cash_div_col)
+                elif cash_div_col is not None:
+                    div_index = list(all_cols).index(cash_div_col) if cash_div_col in all_cols else 0
+                else:
+                    div_index = 0
                 div_col_name = st.selectbox("💵 Chọn cột Cổ tức (VNĐ/cp):", all_cols, index=div_index)
 
             base_rev = abs(clean_financial_value(row[rev_col_name]))
             base_prof = clean_financial_value(row[prof_col_name])
-            # REFACTOR: CHỈ trích xuất cổ tức tiền mặt thật từ CSV gốc (cash_dividend) — bỏ mọi suy đoán
+            # Lấy cổ tức từ cột đã chọn (ưu tiên cash_dividend)
             base_div = clean_financial_value(row[div_col_name]) if div_col_name else 0.0
-            cash_div_col = find_column_by_keywords(df, ['cash_dividend', 'cổ tức tiền mặt'])
-            if cash_div_col:
-                base_div = clean_financial_value(row.get(cash_div_col, 0))
             if base_div < 0:
                 base_div = 0.0
             price = clean_financial_value(row.get(find_column_by_keywords(df, ['giá hiện tại', 'price', 'giá']), 0))
@@ -2059,7 +2068,7 @@ def main():
                 if base_prof > 0 and base_div > 0:
                     payout_ratio = st.slider("💸 Tỷ lệ chi trả cổ tức (payout) %", 0, 100, 30) / 100.0
                 else:
-                    payout_ratio = 0.0  # REFACTOR: không dùng payout mặc định gây cổ tức âm
+                    payout_ratio = 0.0
                     st.info("Chưa có dữ liệu cổ tức từ BCTC gốc — không dự phóng cổ tức")
 
             years = [f"Năm {i}" for i in range(years_proj + 1)]
@@ -2070,7 +2079,6 @@ def main():
             if base_div > 0:
                 div_proj = [max(base_div * ((1 + g_rate) ** i), 0.0) for i in range(years_proj + 1)]
             else:
-                # REFACTOR: không có cổ tức thật trong CSV → để 0, KHÔNG nhân payout gây số âm
                 div_proj = [0.0] * (years_proj + 1)
 
             rev_proj = [round_float(v, 0) for v in rev_proj]
@@ -2134,7 +2142,7 @@ def main():
         else:
             st.info("Không có dữ liệu để dự báo.")
 
-    # --- TAB 4: TỔNG QUAN ---
+    # --- TAB 4: TỔNG QUAN (REFACTOR: hiển thị đơn vị nghìn tỷ) ---
     with tab_overview:
         st.subheader(f"📊 TỔNG QUAN DOANH NGHIỆP: **{selected_ticker_display}**")
         if not df.empty:
@@ -2181,7 +2189,7 @@ def main():
                                 elif key in ['P/E', 'P/B']:
                                     st.metric(key, format_pe_pb(val))
                                 elif key in ['Doanh thu', 'Lợi nhuận', 'Tổng tài sản', 'Vốn chủ sở hữu', 'Nợ dài hạn', 'Nợ ngắn hạn', 'Chi phí bán hàng', 'Chi phí quản lý', 'Vốn hóa', 'Thu nhập lãi thuần (NII) / TOI']:
-                                    st.metric(key, format_currency_vn_advanced(val))
+                                    st.metric(key, format_vn_currency(val, unit='ty'))
                                 elif key in ['EPS', 'BVPS', 'Giá hiện tại']:
                                     st.metric(key, format_currency_vn_advanced(val, per_share=True))
                                 else:
@@ -2229,7 +2237,7 @@ def main():
                     currency_keys = ['Doanh thu', 'Lợi nhuận', 'Tổng tài sản', 'Vốn chủ sở hữu', 'Nợ dài hạn', 'Nợ ngắn hạn', 'Chi phí bán hàng', 'Chi phí quản lý']
                     for col in compare_df.columns:
                         if col in currency_keys:
-                            compare_df[col] = compare_df[col].apply(format_currency_vn)
+                            compare_df[col] = compare_df[col].apply(lambda x: format_vn_currency(x, unit='ty'))
                     st.dataframe(compare_df, use_container_width=True)
                     fig_multi = go.Figure()
                     numeric_cols = [col for col in compare_df.columns if col not in currency_keys]
@@ -2261,7 +2269,7 @@ def main():
         else:
             st.info("Không có dữ liệu để hiển thị tổng quan.")
 
-    # --- TAB 5: TRA CỨU ---
+    # --- TAB 5: TRA CỨU (giữ nguyên) ---
     with tab_search:
         st.subheader("🔎 TRA CỨU NHANH THÔNG TIN DOANH NGHIỆP")
         st.markdown("Nhập mã cổ phiếu để xem các chỉ số cơ bản từ dữ liệu hiện tại.")
@@ -2291,8 +2299,8 @@ def main():
                     growth_rev_val = clean_financial_value(row_search[growth_rev]) if growth_rev else 0
                     growth_profit_val = clean_financial_value(row_search[growth_profit]) if growth_profit else 0
                     col1, col2, col3 = st.columns(3)
-                    col1.metric(rev_label, format_currency_vn_advanced(rev_val) if rev_val else "Không có")
-                    col2.metric("Lợi nhuận", format_currency_vn_advanced(prof_val) if prof_val else "Không có")
+                    col1.metric(rev_label, format_vn_currency(rev_val, unit='ty') if rev_val else "Không có")
+                    col2.metric("Lợi nhuận", format_vn_currency(prof_val, unit='ty') if prof_val else "Không có")
                     if div_col and "tỷ suất" in div_col.lower():
                         col3.metric("Tỷ suất cổ tức (%)", f"{div_val:.1f}%" if div_val else "Không có")
                     else:
@@ -2313,7 +2321,7 @@ def main():
                 else:
                     st.error(f"❌ Không tìm thấy mã {search_ticker_input} qua API.")
 
-    # --- TAB 6: ML ---
+    # --- TAB 6: ML (giữ nguyên) ---
     with tab_ml:
         st.subheader(f"🤖 PHÂN TÍCH SỨC KHỎE TÀI CHÍNH BẰNG AI CHO {selected_ticker_display}")
         if not df.empty:
@@ -2358,8 +2366,8 @@ def main():
                 ml_revenue = revenue_ml * (1 + (roe_ml/100)*0.5)
 
             col_a, col_b, col_c, col_d = st.columns(4)
-            col_a.metric("Doanh thu", format_currency_vn_advanced(revenue_ml))
-            col_b.metric("Lợi nhuận", format_currency_vn_advanced(profit_ml))
+            col_a.metric("Doanh thu", format_vn_currency(revenue_ml, unit='ty'))
+            col_b.metric("Lợi nhuận", format_vn_currency(profit_ml, unit='ty'))
             col_c.metric("EPS hiện tại (VNĐ/cp)", format_eps_value(eps_ml))
             col_d.metric("EPS dự báo (Ensemble)", format_eps_value(ml_eps) if ml_eps else "N/A")
 
@@ -2389,7 +2397,7 @@ def main():
         else:
             st.info("Không có dữ liệu để phân tích ML.")
 
-    # --- TAB 7: DL ---
+    # --- TAB 7: DL (giữ nguyên) ---
     with tab_dl:
         st.subheader(f"🧠 DEEP LEARNING & ENSEMBLE – DỰ BÁO XU HƯỚNG CHO {selected_ticker_display}")
         if not df.empty:
@@ -2421,8 +2429,8 @@ def main():
 
             df_trend = pd.DataFrame({
                 "Quý": quarters,
-                "Doanh thu": [format_currency_vn_advanced(v) for v in rev_forecast],
-                "Lợi nhuận": [format_currency_vn_advanced(v) for v in profit_forecast],
+                "Doanh thu": [format_vn_currency(v, unit='ty') for v in rev_forecast],
+                "Lợi nhuận": [format_vn_currency(v, unit='ty') for v in profit_forecast],
                 "EPS (VNĐ/cp)": [format_eps_value(v) for v in eps_forecast]
             })
             st.dataframe(df_trend, use_container_width=True)
@@ -2462,7 +2470,7 @@ def main():
         else:
             st.info("Không có dữ liệu để phân tích DL.")
 
-    # --- TAB 8: REAL-TIME ---
+    # --- TAB 8: REAL-TIME (giữ nguyên) ---
     with tab_real:
         render_real_time_data(selected_ticker_display)
 
@@ -2556,7 +2564,7 @@ def main():
         """, unsafe_allow_html=True)
 
 # ========================================================
-# HỘP THOẠI POPUP VIP + VIETQR
+# HỘP THOẠI POPUP VIP + VIETQR (giữ nguyên)
 # ========================================================
 BANK_ID = "VCB"
 ACCOUNT_NO = "9327625853"
