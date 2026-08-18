@@ -45,6 +45,20 @@ st.set_page_config(
 st.markdown(
     """
 <style>
+    /* === REFACTOR: chống tràn chữ / đè chữ ở Metric Cards === */
+    div[data-testid="stMetricValue"] {
+        font-size: 1.8rem !important;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 100%;
+    }
+    div[data-testid="stMetricLabel"] {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    div[data-testid="stMetric"] { overflow: hidden; }
     .stApp { background: #0B0F19; color: #F8FAFC; font-family: 'Inter', 'Segoe UI', sans-serif; }
     [data-testid="stSidebar"] { background: #1E293B; border-right: 1px solid #334155; }
     [data-testid="stSidebar"] .stSelectbox label, [data-testid="stSidebar"] .stTextInput label, [data-testid="stSidebar"] .stNumberInput label, [data-testid="stSidebar"] .stSlider label { color: #94A3B8 !important; font-weight: 500; letter-spacing: 0.3px; }
@@ -207,6 +221,132 @@ def format_pe_pb(val):
     return f"{val:,.2f}"
 
 # ============================================================================
+# 2B. CHUẨN HÓA ĐƠN VỊ TÍNH & DỮ LIỆU THỊ TRƯỜNG ĐỘNG (REFACTOR)
+# ============================================================================
+def format_vn_currency(value, unit='nghin_ty', decimals=2):
+    """Chuẩn hóa tiền tệ về Nghìn tỷ đồng (1e12) hoặc Tỷ đồng (1e9). N/A nếu dữ liệu không hợp lệ."""
+    try:
+        num = float(to_float_scalar(value))
+    except Exception:
+        return "N/A"
+    if np.isnan(num) or np.isinf(num) or num == 0:
+        return "N/A"
+    sign = "-" if num < 0 else ""
+    abs_num = abs(num)
+    if unit == 'nghin_ty':
+        return f"{sign}{abs_num / 1e12:,.{decimals}f} Nghìn tỷ"
+    if unit == 'ty':
+        return f"{sign}{abs_num / 1e9:,.{decimals}f} Tỷ"
+    # auto
+    if abs_num >= 1e12:
+        return f"{sign}{abs_num / 1e12:,.{decimals}f} Nghìn tỷ"
+    if abs_num >= 1e9:
+        return f"{sign}{abs_num / 1e9:,.{decimals}f} Tỷ"
+    return f"{sign}{abs_num:,.0f} VNĐ"
+
+def format_percent_safe(val):
+    """Hiển thị % an toàn: trả về N/A nếu NaN/Inf, ngược lại 2 chữ số thập phân."""
+    try:
+        v = float(to_float_scalar(val))
+    except Exception:
+        return "N/A"
+    if np.isnan(v) or np.isinf(v):
+        return "N/A"
+    return f"{v:.2f}%"
+
+def format_price_vnd(price):
+    """Giá cổ phiếu dạng '78,800 VNĐ'. N/A nếu thiếu / âm / 0 / NaN — KHÔNG gán giá giả định."""
+    try:
+        p = float(to_float_scalar(price))
+    except Exception:
+        return "N/A"
+    if np.isnan(p) or np.isinf(p) or p <= 0:
+        return "N/A"
+    return f"{p:,.0f} VNĐ"
+
+def get_dynamic_market_data(df, ticker, row=None):
+    """
+    Tính Giá cổ phiếu & Vốn hóa ĐỘNG cho từng doanh nghiệp (không gán cứng 25.000đ):
+      CT1: Ưu tiên giá đóng cửa thực tế (close_price / price) từ CSV gốc.
+      CT2: Thiếu giá  → Giá (VNĐ) = Vốn hóa (VNĐ) / Số CP lưu hành.
+      CT3: Thiếu vốn hóa → Vốn hóa = Giá × Số CP lưu hành.
+    Dữ liệu âm / 0 / NaN → trả về None để hiển thị 'N/A'.
+    """
+    if row is None:
+        ticker_col = find_column_by_keywords(df, ['mã cp', 'ticker', 'symbol', 'mã'])
+        if ticker_col is None or df.empty:
+            return {'price': None, 'market_cap': None, 'shares': None}
+        matched = df[df[ticker_col].astype(str).str.upper().str.strip() == str(ticker).upper().strip()]
+        if matched.empty:
+            return {'price': None, 'market_cap': None, 'shares': None}
+        row = matched.iloc[0]
+    price_col = find_column_by_keywords(df, ['close_price', 'giá đóng cửa', 'giá hiện tại', 'price', 'giá', 'close'])
+    mcap_col = find_column_by_keywords(df, ['market_cap', 'vốn hóa', 'vốn hoá', 'market capitalization'])
+    shares_col = find_column_by_keywords(df, ['shares_outstanding', 'cổ phiếu lưu hành', 'số lượng cổ phiếu', 'shares'])
+    price = clean_financial_value(row.get(price_col, 0)) if price_col else 0.0
+    market_cap = clean_financial_value(row.get(mcap_col, 0)) if mcap_col else 0.0
+    shares = clean_financial_value(row.get(shares_col, 0)) if shares_col else 0.0
+    # Công thức 2: Giá = Vốn hóa / Số CP lưu hành
+    if price <= 0 and market_cap > 0 and shares > 0:
+        price = market_cap / shares
+    # Công thức 3: Vốn hóa = Giá × Số CP lưu hành
+    if market_cap <= 0 and price > 0 and shares > 0:
+        market_cap = price * shares
+
+    def _valid(v):
+        try:
+            v = float(v)
+        except Exception:
+            return None
+        return v if (not np.isnan(v) and not np.isinf(v) and v > 0) else None
+
+    return {'price': _valid(price), 'market_cap': _valid(market_cap), 'shares': _valid(shares)}
+
+# ============================================================================
+# 2C. PHÂN LOẠI DOANH NGHIỆP THEO MÃ NGÀNH 10 / 20 / 30 (REFACTOR)
+# ============================================================================
+SECURITIES_TICKERS = {'SSI','VND','HCM','VCI','SHS','MBS','FTS','BSI','CTS','VIX','AGR','ORS','TVS','APS','BVS','PSI','VDS','EVS','DSC','SBS'}
+INSURANCE_TICKERS = {'BVH','PVI','BMI','MIG','BIC','PGI','VNR','PTI','ABI','AIC'}
+
+def categorize_industry(df, ticker=None, row=None):
+    """
+    Phân loại theo MÃ NGÀNH trong file CSV gốc:
+      10 = Sản xuất / Bán lẻ / Thương mại  → BCTC tiêu chuẩn (Biên LN gộp, ROE, ROA, Current Ratio...)
+      20 = Ngân hàng                        → chỉ số riêng (NIM, NPL, CASA, LDR, LNTT)
+      30 = Chứng khoán / Bảo hiểm           → chỉ số tự doanh (FVTPL, HTM, AFS)
+    Ưu tiên cột mã ngành trong CSV; nếu thiếu, fallback theo danh sách mã cổ phiếu.
+    """
+    code_col = find_column_by_keywords(df, ['mã ngành', 'ma nganh', 'industry_code', 'icb_code', 'icb', 'sector_code'])
+    if code_col is not None and row is not None:
+        try:
+            code_raw = str(row.get(code_col, '')).strip()
+            if code_raw not in ('', 'nan', 'None'):
+                code = int(float(code_raw))
+                if code in (10, 20, 30):
+                    return code
+                first_digit = int(str(code)[0])
+                if first_digit == 2:
+                    return 20
+                if first_digit == 3:
+                    return 30
+                return 10
+        except Exception:
+            pass
+    t = str(ticker).upper().strip() if ticker else ''
+    if t in BANK_TICKERS:
+        return 20
+    if t in SECURITIES_TICKERS or t in INSURANCE_TICKERS:
+        return 30
+    return 10
+
+def industry_label(industry_type):
+    return {
+        10: "Loại 10 — Sản xuất / Bán lẻ / Thương mại",
+        20: "Loại 20 — Ngân hàng",
+        30: "Loại 30 — Chứng khoán / Bảo hiểm",
+    }.get(industry_type, "Khác")
+
+# ============================================================================
 # 3. PHÁT HIỆN NGÂN HÀNG & BANK ADAPTER
 # ============================================================================
 BANK_TICKERS = {'MBB','HDB','CTG','TCB','VCB','VPB','BID','ACB','SHB','TPB','MSB','OCB','VIB','STB','EIB','SSB','SGB','NAB','KLB','CBB','PGB','BAB','BSB'}
@@ -348,7 +488,12 @@ def extract_financial_metrics_smart(row, df, ticker):
     profit = clean_financial_value(row[profit_col]) if profit_col else 0.0
     equity = clean_financial_value(row[equity_col]) if equity_col else 0.0
     shares = clean_financial_value(row[shares_col]) if shares_col else 0.0
-    price = clean_financial_value(row[price_col]) if price_col else 25000.0
+    price = clean_financial_value(row[price_col]) if price_col else 0.0
+    # REFACTOR: tính giá & vốn hóa ĐỘNG từ dữ liệu thật — không gán cứng 25.000đ
+    _md = get_dynamic_market_data(df, ticker, row=row)
+    if price <= 0 and _md['price']:
+        price = _md['price']
+    market_cap = _md['market_cap'] if _md['market_cap'] else 0.0
     roe = clean_financial_value(row[roe_col]) if roe_col else 0.0
     pe_api = clean_financial_value(row[pe_col]) if pe_col else 0.0
     pb_api = clean_financial_value(row[pb_col]) if pb_col else 0.0
@@ -379,9 +524,9 @@ def extract_financial_metrics_smart(row, df, ticker):
             bvps_source = "Ước lượng từ P/B"
             bvps_message = f"ℹ️ BVPS = {bvps:,.0f} (ước lượng từ P/B = {pb:.2f})"
         else:
-            bvps = price / 10 if price > 0 else 2500
-            bvps_source = "Ước lượng dự phòng"
-            bvps_message = f"ℹ️ BVPS = {bvps:,.0f} (dữ liệu dự phòng)"
+            bvps = 0.0
+            bvps_source = "Không có dữ liệu"
+            bvps_message = "⚠️ Không đủ dữ liệu để tính BVPS (hiển thị N/A)"
 
     if pe <= 0:
         pe = None
@@ -399,7 +544,8 @@ def extract_financial_metrics_smart(row, df, ticker):
         'bvps_source': bvps_source,
         'bvps_message': bvps_message,
         'profit': profit,
-        'price': price if price > 0 else 25000.0,
+        'price': price if price > 0 else 0.0,
+        'market_cap': market_cap if market_cap > 0 else 0.0,
         'roe': roe,
         'pe': pe,
         'pb': pb,
@@ -704,7 +850,7 @@ def hybrid_valuation_ensemble(price, eps, bvps, roe, margin, de, sector):
     margin = to_float_scalar(margin)
     de = to_float_scalar(de)
     if price <= 0:
-        price = 25000.0
+        price = 0.0  # REFACTOR: không gán giá giả định — thiếu giá thì định giá thuần theo EPS/BVPS
     if eps > 0 and bvps > 0:
         graham_val = (22.5 * eps * bvps) ** 0.5
     else:
@@ -727,7 +873,9 @@ def hybrid_valuation_ensemble(price, eps, bvps, roe, margin, de, sector):
         hybrid = 0.5 * graham_val + 0.5 * graham_pe
     else:
         hybrid = 0.5 * graham_val + 0.5 * ml_graham
-    result = max(hybrid, price * 0.6)
+    result = max(hybrid, price * 0.6) if price > 0 else hybrid
+    if result <= 0:
+        return None  # Không đủ dữ liệu → hiển thị N/A
     return round_float(result, 0)
 
 # ============================================================================
@@ -916,8 +1064,7 @@ def render_valuation_slider(current_price, eps, bvps):
     st.session_state.slider_mos = mos
     eps_val = to_float_scalar(eps)
     current_price_val = to_float_scalar(current_price)
-    if current_price_val <= 0:
-        current_price_val = 25000.0
+    has_price = current_price_val > 0  # REFACTOR: thiếu giá → N/A, không gán 25.000đ
     if r > g:
         intrinsic_value = eps_val * (1 + g/100) / ((r - g) / 100)
     else:
@@ -925,9 +1072,11 @@ def render_valuation_slider(current_price, eps, bvps):
     safe_buy_price = intrinsic_value * (1 - mos / 100)
     intrinsic_value = round_float(intrinsic_value, 0)
     safe_buy_price = round_float(safe_buy_price, 0)
-    if current_price_val <= 0:
-        current_price_val = 25000
-    if current_price_val < safe_buy_price:
+    if not has_price:
+        status = "KHÔNG CÓ DỮ LIỆU GIÁ"
+        status_class = "rec-hold"
+        status_color = "#94A3B8"
+    elif current_price_val < safe_buy_price:
         status = "RẤT HẤP DẪN / MUA"
         status_class = "rec-buy"
         status_color = "#22C55E"
@@ -964,7 +1113,7 @@ def render_valuation_slider(current_price, eps, bvps):
         <div class="glass-card" style="text-align:center;">
             <div style="color:#94A3B8; font-size:0.85em; text-transform:uppercase; letter-spacing:0.5px;">📊 Chênh lệch</div>
             <div style="font-size:2em; font-weight:700; color:{color_diff}; margin:8px 0;">{diff_percent:+.1f}%</div>
-            <div style="color:#64748B; font-size:0.8em;">Giá thị trường: {current_price_val:,.0f} VNĐ</div>
+            <div style="color:#64748B; font-size:0.8em;">Giá thị trường: {format_price_vnd(current_price_val)}</div>
         </div>
         """, unsafe_allow_html=True)
     with col_result4:
@@ -1405,12 +1554,7 @@ def fetch_stock_data(ticker):
             for k in ['revenue', 'profit', 'equity', 'shares', 'market_cap', 'adtv20']:
                 if normalized.get(k, 0) <= 0:
                     normalized[k] = mock.get(k, 0)
-    if normalized.get('price', 0) < 10000:
-        mock = generate_mock_financial(ticker)
-        normalized['price'] = mock.get('price', 25000)
-    if normalized.get('eps', 0) < 1000:
-        mock = generate_mock_financial(ticker)
-        normalized['eps'] = mock.get('eps', 2500)
+    # REFACTOR: KHÔNG ghi đè giá/EPS thật bằng dữ liệu mô phỏng — thiếu thì giữ 0 và hiển thị N/A
     return normalized
 
 def render_real_time_data(ticker):
@@ -1636,7 +1780,7 @@ def main():
         fin = extract_financial_metrics_smart(row_data, df, selected_ticker_display)
         eps = fin['eps']
         bvps = fin['bvps']
-        price = fin['price'] if fin['price'] > 0 else 25000.0
+        price = fin['price'] if fin['price'] > 0 else 0.0  # N/A nếu thiếu giá — không gán 25.000đ
         roe = fin['roe']
         pe = fin['pe']
         pb = fin['pb']
@@ -1644,7 +1788,16 @@ def main():
         bvps_message = fin.get('bvps_message', '')
         has_eps = fin['has_eps']
         has_bvps = fin['has_bvps']
-        margin = clean_financial_value(row_data.get(find_column_by_keywords(df, ['biên lợi nhuận gộp', 'gross margin']), 0))
+        # REFACTOR: kiểm tra phân loại ngành (10/20/30) TRƯỚC khi áp công thức
+        industry_type = categorize_industry(df, selected_ticker_display, row=row_data)
+        if industry_type == 20:
+            sector = "banking"
+        elif industry_type == 30 and sector not in ("securities", "insurance"):
+            sector = "securities"
+        if industry_type == 20:
+            margin = 0.0  # Ngân hàng: KHÔNG tính Biên LN gộp kiểu sản xuất → hiển thị N/A
+        else:
+            margin = clean_financial_value(row_data.get(find_column_by_keywords(df, ['biên lợi nhuận gộp', 'gross margin']), 0))
         de = clean_financial_value(row_data.get(find_column_by_keywords(df, ['nợ/vcsh', 'd/e', 'debt to equity']), 0))
         intrinsic_val = hybrid_valuation_ensemble(price, eps, bvps, roe, margin, de, sector)
         bank_revenue = None
@@ -1870,7 +2023,7 @@ def main():
             all_cols = df.columns
             rev_col = find_column_by_keywords(df, ['Doanh thu bán hàng', 'doanh thu', 'revenue'])
             prof_col = find_column_by_keywords(df, ['lợi nhuận sau thuế', 'lnst', 'profit', 'net income'])
-            div_col = find_column_by_keywords(df, ['cổ tức', 'dividend per share', 'dividend'])
+            div_col = find_column_by_keywords(df, ['cash_dividend', 'cổ tức tiền mặt', 'cổ tức', 'dividend per share', 'dividend'])
 
             c_sel1, c_sel2, c_sel3 = st.columns(3)
             with c_sel1:
@@ -1885,11 +2038,17 @@ def main():
 
             base_rev = abs(clean_financial_value(row[rev_col_name]))
             base_prof = clean_financial_value(row[prof_col_name])
+            # REFACTOR: CHỈ trích xuất cổ tức tiền mặt thật từ CSV gốc (cash_dividend) — bỏ mọi suy đoán
             base_div = clean_financial_value(row[div_col_name]) if div_col_name else 0.0
+            cash_div_col = find_column_by_keywords(df, ['cash_dividend', 'cổ tức tiền mặt'])
+            if cash_div_col:
+                base_div = clean_financial_value(row.get(cash_div_col, 0))
+            if base_div < 0:
+                base_div = 0.0
             price = clean_financial_value(row.get(find_column_by_keywords(df, ['giá hiện tại', 'price', 'giá']), 0))
             div_yield = clean_financial_value(row.get(find_column_by_keywords(df, ['tỷ suất cổ tức', 'dividend yield', 'cổ tức (%)']), 0))
-            if base_div == 0 and price > 0 and div_yield > 0:
-                base_div = (div_yield / 100.0) * price
+            if base_div == 0:
+                st.info("Chưa có dữ liệu cổ tức từ BCTC gốc")
 
             col_param1, col_param2, col_param3 = st.columns(3)
             with col_param1:
@@ -1900,8 +2059,8 @@ def main():
                 if base_prof > 0 and base_div > 0:
                     payout_ratio = st.slider("💸 Tỷ lệ chi trả cổ tức (payout) %", 0, 100, 30) / 100.0
                 else:
-                    payout_ratio = 0.3
-                    st.info("Không có dữ liệu cổ tức hoặc lợi nhuận, sử dụng payout mặc định 30%")
+                    payout_ratio = 0.0  # REFACTOR: không dùng payout mặc định gây cổ tức âm
+                    st.info("Chưa có dữ liệu cổ tức từ BCTC gốc — không dự phóng cổ tức")
 
             years = [f"Năm {i}" for i in range(years_proj + 1)]
             rev_proj = [base_rev * ((1 + g_rate) ** i) for i in range(years_proj + 1)]
@@ -1909,9 +2068,10 @@ def main():
             eps = clean_financial_value(row.get(find_column_by_keywords(df, ['eps', 'earnings per share']), 0))
             shares_out = base_prof / eps if (eps > 0 and base_prof > 0) else 1
             if base_div > 0:
-                div_proj = [base_div * ((1 + g_rate) ** i) for i in range(years_proj + 1)]
+                div_proj = [max(base_div * ((1 + g_rate) ** i), 0.0) for i in range(years_proj + 1)]
             else:
-                div_proj = [(prof_proj[i] * payout_ratio) / shares_out for i in range(years_proj + 1)]
+                # REFACTOR: không có cổ tức thật trong CSV → để 0, KHÔNG nhân payout gây số âm
+                div_proj = [0.0] * (years_proj + 1)
 
             rev_proj = [round_float(v, 0) for v in rev_proj]
             prof_proj = [round_float(v, 0) for v in prof_proj]
@@ -2015,7 +2175,7 @@ def main():
                         for idx, (key, (val, col_name)) in enumerate(available.items()):
                             with cols[idx % 4]:
                                 if key in ['ROE', 'ROA', 'Biên LN gộp', 'Biên LN ròng', 'Tăng trưởng doanh thu (%)', 'Tăng trưởng LN (%)', 'Tỷ suất cổ tức']:
-                                    st.metric(key, f"{val:.1f}%")
+                                    st.metric(key, format_percent_safe(val))
                                 elif key in ['Nợ/VCSH']:
                                     st.metric(key, f"{val:.2f}")
                                 elif key in ['P/E', 'P/B']:
