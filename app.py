@@ -37,7 +37,7 @@ from utils import safe_float, format_vn_currency
 from modules.quick_info import render_quick_info
 
 # ============================================================================
-# 1. CẤU HÌNH TRANG & CSS DARK MODE (CHỐNG VỠ GIAO DIỆN)
+# 1. CẤU HÌNH TRANG & CSS DARK MODE
 # ============================================================================
 st.set_page_config(
     page_title="FINEX VN Terminal - Công Nghệ Định Giá Doanh Nghiệp",
@@ -46,7 +46,6 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# CSS chống vỡ giao diện
 st.markdown(
     """
 <style>
@@ -164,7 +163,7 @@ st.markdown(
 )
 
 # ============================================================================
-# 2. CÁC HÀM HELPER (sử dụng safe_float từ utils)
+# 2. CÁC HÀM HELPER
 # ============================================================================
 def to_float_scalar(val):
     return safe_float(val)
@@ -1570,7 +1569,6 @@ def main():
     if 'selected_ticker' not in st.session_state:
         st.session_state.selected_ticker = None
 
-    # HEADER
     st.markdown("""
     <div class="header-box">
         <div style="display:flex; flex-direction:column;">
@@ -1595,7 +1593,6 @@ def main():
     if st.button("Mở popup VIP", key="vip_dialog_trigger", help="Nhấn để mở popup nâng cấp", type="primary"):
         vip_upgrade_dialog()
 
-    # ======= SIDEBAR: LỰA CHỌN NGUỒN DỮ LIỆU =======
     st.sidebar.header("🔍 CHỌN NGUỒN DỮ LIỆU")
     data_source = st.sidebar.selectbox(
         "Chọn loại dữ liệu:",
@@ -1612,7 +1609,6 @@ def main():
     df_inc = pd.DataFrame()
     df_bs = pd.DataFrame()
 
-    # ====== TRƯỜNG HỢP 1: FILE CSV ======
     if data_source == "📂 File CSV (Top 598 doanh nghiệp)":
         st.sidebar.subheader("Chọn khối doanh nghiệp:")
         dataset_option = st.sidebar.selectbox(
@@ -1669,7 +1665,6 @@ def main():
         selected_ticker_display = selected_ticker
         row_data = df[df[ticker_col].astype(str) == selected_ticker].iloc[0]
 
-    # ====== TRƯỜNG HỢP 2: API vnstock3 ======
     else:
         st.sidebar.subheader("🔍 Nhập mã cổ phiếu:")
         ticker_api = st.sidebar.text_input("Mã CP (ví dụ: HPG, FPT, VCB):", value="HPG").strip().upper()
@@ -1723,7 +1718,6 @@ def main():
             c4.metric("P/B", pb)
             c5.metric("ROE", roe)
 
-    # ====== PHẦN CHUNG: PHÂN TÍCH, ĐỊNH GIÁ ======
     st.session_state.df = df
     if 'ticker_col' not in st.session_state:
         st.session_state.ticker_col = 'Mã CP'
@@ -1765,12 +1759,9 @@ def main():
         intrinsic_val = None
         bank_revenue = None
 
-    # ====== HIỂN THỊ THÔNG TIN NHANH - SỬ DỤNG render_quick_info() ======
     st.markdown("#### 📊 Thông tin nhanh")
     
-    # Chuẩn bị dữ liệu cho quick_info
     if not df.empty:
-        # Tạo một dict chứa tất cả dữ liệu cần thiết
         row_dict = {
             'price': price,
             'eps': eps,
@@ -1792,12 +1783,10 @@ def main():
             'bank_revenue': bank_revenue if bank_revenue else None,
         }
         
-        # Gọi hàm render_quick_info từ module
-    render_quick_info(row_dict)
+        render_quick_info(row_dict)
     else:
         st.warning("Không có dữ liệu để hiển thị")
 
-    # ====== TÍN HIỆU ĐẦU TƯ ======
     st.markdown("---")
     st.markdown("### 🚦 TÍN HIỆU ĐẦU TƯ - BỘ LỌC 3 TẦNG")
     if bvps_message:
@@ -1831,7 +1820,6 @@ def main():
         </div>
         """, unsafe_allow_html=True)
 
-    # ===== CÁC TAB =====
     tab_table, tab_valuation, tab_forecast, tab_overview, tab_search, tab_ml, tab_dl, tab_real = st.tabs([
         "📋 DỮ LIỆU",
         "🧮 ĐỊNH GIÁ",
@@ -1843,7 +1831,6 @@ def main():
         "📡 REAL-TIME",
     ])
 
-    # --- TAB 1: DỮ LIỆU ---
     with tab_table:
         if data_source == "📂 File CSV (Top 598 doanh nghiệp)":
             st.subheader(f"📋 Danh sách: {dataset_option}")
@@ -1880,7 +1867,6 @@ def main():
             else:
                 st.info("Không có dữ liệu Bảng cân đối.")
 
-    # --- TAB 2: ĐỊNH GIÁ ---
     with tab_valuation:
         st.subheader(f"📊 ĐỊNH GIÁ CHI TIẾT: {selected_ticker_display}")
         if bvps_source != "BCTC gốc":
@@ -2005,7 +1991,6 @@ def main():
         
         render_valuation_slider(price, eps, bvps)
 
-    # --- TAB 3: DỰ BÁO ---
     with tab_forecast:
         st.markdown("### 📌 Phân Tích & Mô Phỏng Tăng Trưởng Dài Hạn")
         if not df.empty:
@@ -2126,7 +2111,6 @@ def main():
         else:
             st.info("Không có dữ liệu để dự báo.")
 
-    # --- TAB 4: TỔNG QUAN ---
     with tab_overview:
         st.subheader(f"📊 TỔNG QUAN DOANH NGHIỆP: **{selected_ticker_display}**")
         if not df.empty:
@@ -2253,7 +2237,6 @@ def main():
         else:
             st.info("Không có dữ liệu để hiển thị tổng quan.")
 
-    # --- TAB 5: TRA CỨU ---
     with tab_search:
         st.subheader("🔎 TRA CỨU NHANH THÔNG TIN DOANH NGHIỆP")
         st.markdown("Nhập mã cổ phiếu để xem các chỉ số cơ bản từ dữ liệu hiện tại.")
@@ -2305,7 +2288,6 @@ def main():
                 else:
                     st.error(f"❌ Không tìm thấy mã {search_ticker_input} qua API.")
 
-    # --- TAB 6: ML ---
     with tab_ml:
         st.subheader(f"🤖 PHÂN TÍCH SỨC KHỎE TÀI CHÍNH BẰNG AI CHO {selected_ticker_display}")
         if not df.empty:
@@ -2364,7 +2346,6 @@ def main():
             col_m2.metric("Giá trị Graham (cơ bản)", format_currency_vn_advanced(graham_base, per_share=True))
             col_m3.metric("Giá trị Hybrid + Ensemble", format_currency_vn_advanced(hybrid_val, per_share=True) if hybrid_val else "N/A")
             
-            # ===== SỬA LỖI TYPEERROR =====
             graham_val_num = safe_float(graham_base)
             hybrid_val_num = safe_float(hybrid_val)
             price_ml_num = safe_float(price_ml)
@@ -2390,7 +2371,6 @@ def main():
         else:
             st.info("Không có dữ liệu để phân tích ML.")
 
-    # --- TAB 7: DL ---
     with tab_dl:
         st.subheader(f"🧠 DEEP LEARNING & ENSEMBLE – DỰ BÁO XU HƯỚNG CHO {selected_ticker_display}")
         if not df.empty:
@@ -2463,15 +2443,12 @@ def main():
         else:
             st.info("Không có dữ liệu để phân tích DL.")
 
-    # --- TAB 8: REAL-TIME ---
     with tab_real:
         render_real_time_data(selected_ticker_display)
 
-    # ===== PHẦN KIỂM TRA ĐỘ CHÍNH XÁC =====
     st.markdown("---")
     render_accuracy_section()
 
-    # ===== DANH MỤC CỔ PHIẾU ĐỊNH GIÁ RẺ =====
     st.markdown("---")
     st.markdown("## 📌 Danh mục Cổ phiếu Định giá Rẻ")
     if data_source == "📂 File CSV (Top 598 doanh nghiệp)":
@@ -2513,10 +2490,8 @@ def main():
     else:
         st.info("Chức năng danh mục cổ phiếu định giá rẻ chỉ khả dụng với dữ liệu từ file CSV.")
 
-    # ===== HIỂN THỊ TÀI LIỆU =====
     render_document_section()
 
-    # ===== FOOTER =====
     st.markdown("---")
     st.markdown(
         """
@@ -2556,7 +2531,6 @@ def main():
         </div>
         """, unsafe_allow_html=True)
 
-    # ===== KÍCH HOẠT POPUP VIP TỪ NÚT TRÊN HEADER =====
     if st.button("🚀 Mở popup VIP", use_container_width=True, type="primary", key="btn_open_vip_main"):
         vip_popup()
 
