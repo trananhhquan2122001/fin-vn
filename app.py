@@ -1793,7 +1793,7 @@ def main():
         }
         
         # Gọi hàm render_quick_info từ module
-        render_quick_info(row_dict, selected_ticker_display)
+     render_quick_info(row_dict)
     else:
         st.warning("Không có dữ liệu để hiển thị")
 
