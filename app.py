@@ -33,7 +33,7 @@ except ImportError:
     XGB_AVAILABLE = False
 
 # ============================================================================
-# 1. CẤU HÌNH TRANG & CSS DARK MODE (BỔ SUNG CHỐNG TRÀN)
+# 1. CẤU HÌNH TRANG & CSS DARK MODE
 # ============================================================================
 st.set_page_config(
     page_title="FINEX VN Terminal - Công Nghệ Định Giá Doanh Nghiệp",
@@ -42,7 +42,6 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# REFACTOR: CSS cải tiến chống tràn metric
 st.markdown(
     """
 <style>
@@ -160,7 +159,7 @@ st.markdown(
 )
 
 # ============================================================================
-# 2. CÁC HÀM CHUẨN HÓA ĐƠN VỊ (REFACTOR)
+# 2. CÁC HÀM CHUẨN HÓA ĐƠN VỊ & HELPER
 # ============================================================================
 def to_float_scalar(val):
     if val is None:
@@ -194,6 +193,20 @@ def round_float(val, decimals=2):
         return round(to_float_scalar(val), decimals)
     except:
         return 0.0
+
+# ===== HÀM ÉP KIỂU AN TOÀN – SỬA LỖI TYPEERROR =====
+def safe_float(val, default=0.0):
+    """Ép kiểu số an toàn, tránh lỗi crash do N/A, None hoặc String"""
+    if val is None or val == "N/A":
+        return default
+    try:
+        # Nếu val là string chứa dấu phẩy phân cách hàng nghìn
+        if isinstance(val, str):
+            val = val.replace(',', '').replace('VNĐ', '').replace('đ', '').strip()
+        cleaned_val = float(val)
+        return cleaned_val if not (np.isnan(cleaned_val) or np.isinf(cleaned_val)) else default
+    except (ValueError, TypeError):
+        return default
 
 # REFACTOR: Hàm format_vn_currency chuẩn hóa đơn vị Nghìn tỷ / Tỷ
 def format_vn_currency(value, unit='nghin_ty', decimals=2):
@@ -1609,7 +1622,7 @@ def vip_upgrade_dialog():
             st.rerun()
 
 # ============================================================================
-# 20. MAIN (TÍCH HỢP CẢ HAI NGUỒN DỮ LIỆU) - ĐÃ REFACTOR
+# 20. MAIN (TÍCH HỢP CẢ HAI NGUỒN DỮ LIỆU) - ĐÃ REFACTOR + SỬA LỖI TYPEERROR
 # ============================================================================
 def main():
     if 'selected_ticker' not in st.session_state:
@@ -2321,7 +2334,7 @@ def main():
                 else:
                     st.error(f"❌ Không tìm thấy mã {search_ticker_input} qua API.")
 
-    # --- TAB 6: ML (giữ nguyên) ---
+    # --- TAB 6: ML (ĐÃ SỬA LỖI TYPEERROR) ---
     with tab_ml:
         st.subheader(f"🤖 PHÂN TÍCH SỨC KHỎE TÀI CHÍNH BẰNG AI CHO {selected_ticker_display}")
         if not df.empty:
@@ -2379,7 +2392,14 @@ def main():
             graham_base = (22.5*eps_ml*bvps_ml)**0.5 if eps_ml>0 and bvps_ml>0 else price_ml*0.8
             col_m2.metric("Giá trị Graham (cơ bản)", format_currency_vn_advanced(graham_base, per_share=True))
             col_m3.metric("Giá trị Hybrid + Ensemble", format_currency_vn_advanced(hybrid_val, per_share=True))
-            mos_hybrid = ((hybrid_val - price_ml) / hybrid_val) * 100 if hybrid_val > 0 else 0
+            
+            # ===== SỬA LỖI TYPEERROR TẠI DÒNG 2382 =====
+            hybrid_val_num = safe_float(hybrid_val)
+            price_ml_num = safe_float(price_ml)
+            if hybrid_val_num > 0:
+                mos_hybrid = ((hybrid_val_num - price_ml_num) / hybrid_val_num) * 100
+            else:
+                mos_hybrid = 0.0
             st.metric("Biên an toàn Hybrid", f"{mos_hybrid:.1f}%")
             if mos_hybrid >= 20:
                 st.success("✅ Hybrid Valuation cho thấy cổ phiếu đang ở vùng giá hợp lý với biên an toàn tốt.")
@@ -2564,7 +2584,7 @@ def main():
         """, unsafe_allow_html=True)
 
 # ========================================================
-# HỘP THOẠI POPUP VIP + VIETQR (giữ nguyên)
+# HỘP THOẠI POPUP VIP + VIETQR
 # ========================================================
 BANK_ID = "VCB"
 ACCOUNT_NO = "9327625853"
