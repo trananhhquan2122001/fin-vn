@@ -12,7 +12,8 @@ import time
 from collections import Counter
 import random
 from vnstock3 import Vnstock
-
+from utils import safe_float, format_vn_currency
+from modules.quick_info import render_quick_info
 # ---------- Machine Learning & Deep Learning ----------
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.preprocessing import StandardScaler, LabelEncoder
